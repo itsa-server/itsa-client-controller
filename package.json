@@ -29,6 +29,7 @@
     "node": "*"
   },
   "dependencies": {
+    "itsa-classes": "^1.0.0",
     "react": "^0.13.3",
     "utils": "itsa/utils"
   },
