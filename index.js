@@ -1,7 +1,7 @@
 'use strict';
 
-const isNode = (typeof global!=='undefined') && ({}.toString.call(global)==='[object global]') && (!global.document || ({}.toString.call(global.document)!=='[object HTMLDocument]')),
-      NOOP = () => {},
+var isNode = (typeof global!=='undefined') && ({}.toString.call(global)==='[object global]') && (!global.document || ({}.toString.call(global.document)!=='[object HTMLDocument]')),
+      NOOP = function() {},
       WINDOW = isNode ? {
          document: {
              head: {
@@ -11,14 +11,14 @@ const isNode = (typeof global!=='undefined') && ({}.toString.call(global)==='[ob
          }
       } : window;
 
-const React = require('react'),
+var React = require('react'),
       DOCUMENT = WINDOW.document,
       HEAD = DOCUMENT.head,
-      async = require('utils').async;
+      async = require('utils').async,
+      Classes = require('itsa-classes');
 
-class Controller {
-    constructor() {
-        const instance = this,
+var Controller = Classes.createClass(function() {
+        var instance = this,
               exports = WINDOW.__itsa_react_server;
         if (exports) {
             instance.BodyComponent = exports.BodyComponent;
@@ -27,7 +27,7 @@ class Controller {
             instance.lang = exports.props.__lang;
 
             // set moduleId of the chunk
-            exports.props.__routes.some(route => {
+            exports.props.__routes.some(function(route) {
                 if (route.view===instance.view) {
                     instance.componentId = route.componentId;
                     instance.requireId = route.requireId;
@@ -40,110 +40,111 @@ class Controller {
             instance._initCss();
             instance._reRender();
         }
-    }
+    },
+    {
 
-    _initCss() {
-        let stylenode;
-        // If the css was set through a `link`-element, we transfer it into a `style` element.
-        // this way, we can manage its content
-        const instance = this;
-        instance.linkNode = DOCUMENT.querySelector('link[data-src="inline"]');
-        if (instance.linkNode) {
-            stylenode = DOCUMENT.querySelector('style[data-src="inline"]');
-        }
-        if (instance.linkNode || !stylenode) {
-            stylenode = DOCUMENT.createElement('style');
-            stylenode.setAttribute('data-src', 'inline');
-            HEAD.appendChild(stylenode);
-            instance._CssNode = stylenode;
-            // cannot set instance.css --> will need to be loaded and set with next `setPage`
-        }
-        else {
-            instance.css = stylenode.textContent;
-        }
-        instance._CssNode = stylenode;
-    }
-
-    _renderCss() {
-        var instance = this;
-        if (instance.css) {
+        _initCss: function() {
+            var stylenode;
+            // If the css was set through a `link`-element, we transfer it into a `style` element.
+            // this way, we can manage its content
+            var instance = this;
+            instance.linkNode = DOCUMENT.querySelector('link[data-src="inline"]');
             if (instance.linkNode) {
-                HEAD.removeChild(instance.linkNode);
-                delete instance.linkNode;
+                stylenode = DOCUMENT.querySelector('style[data-src="inline"]');
             }
-            instance._CssNode.textContent = instance.css;
-        }
-    }
+            if (instance.linkNode || !stylenode) {
+                stylenode = DOCUMENT.createElement('style');
+                stylenode.setAttribute('data-src', 'inline');
+                HEAD.appendChild(stylenode);
+                instance._CssNode = stylenode;
+                // cannot set instance.css --> will need to be loaded and set with next `setPage`
+            }
+            else {
+                instance.css = stylenode.textContent;
+            }
+            instance._CssNode = stylenode;
+        },
 
-    getComponentId() {
-        return this.componentId;
-    }
+        _renderCss: function() {
+            var instance = this;
+            if (instance.css) {
+                if (instance.linkNode) {
+                    HEAD.removeChild(instance.linkNode);
+                    delete instance.linkNode;
+                }
+                instance._CssNode.textContent = instance.css;
+            }
+        },
 
-    getRequireId() {
-        return this.requireId;
-    }
+        getComponentId: function() {
+            return this.componentId;
+        },
 
-    _markHeadAttr() {
-        HEAD.setAttribute('data-page', this.getView());
-    }
+        getRequireId: function() {
+            return this.requireId;
+        },
 
-    getProps() {
-        return this.props;
-    }
+        _markHeadAttr: function() {
+            HEAD.setAttribute('data-page', this.getView());
+        },
 
-    getView() {
-        return this.view;
-    }
+        getProps: function() {
+            return this.props;
+        },
 
-    getLang() {
-        return this.lang;
-    }
+        getView: function() {
+            return this.view;
+        },
 
-    isStaticView() {
-        return this.staticView;
-    }
+        getLang: function() {
+            return this.lang;
+        },
 
-    getTitle() {
-        return DOCUMENT.title;
-    }
+        isStaticView: function() {
+            return this.staticView;
+        },
 
-    getBodyComponent() {
-        return this.BodyComponent;
-    }
+        getTitle: function() {
+            return DOCUMENT.title;
+        },
 
-    getCss() {
-        return this._CssNode.textContent;
-    }
+        getBodyComponent: function() {
+            return this.BodyComponent;
+        },
 
-    setPage(config/* view, BodyComponent, title, props, css, staticView, componentId, requireId */) {
-        const instance = this;
-        DOCUMENT.title = config.title || '';
-        instance.BodyComponent = config.BodyComponent;
-        instance.props = config.props || {};
-        // specify lang AFTER props (because of the fallback)
-        instance.lang = config.lang || instance.lang || instance.props.__lang;
-        instance.css = config.css || '';
-        instance.view = config.view;
-        instance.componentId = config.componentId;
-        instance.requireId = config.requireId;
-        instance.staticView = (typeof config.staticView==='boolean') ? config.staticView : false;
-        return instance._reRender();
-    }
+        getCss: function() {
+            return this._CssNode.textContent;
+        },
 
-    _reRender() {
-        var instance = this;
-        return new Promise(resolve => {
-            instance._markHeadAttr();
-            instance._renderCss();
-            // ff has issues when rendering comes immediate after setting new css.
-            // therefore we go async:
-            async(() => {
-                React.render(React.createElement(instance.BodyComponent, instance.props), DOCUMENT.body);
-                resolve();
+        setPage: function(config/* view, BodyComponent, title, props, css, staticView, componentId, requireId */) {
+            var instance = this;
+            DOCUMENT.title = config.title || '';
+            instance.BodyComponent = config.BodyComponent;
+            instance.props = config.props || {};
+            // specify lang AFTER props (because of the fallback)
+            instance.lang = config.lang || instance.lang || instance.props.__lang;
+            instance.css = config.css || '';
+            instance.view = config.view;
+            instance.componentId = config.componentId;
+            instance.requireId = config.requireId;
+            instance.staticView = (typeof config.staticView==='boolean') ? config.staticView : false;
+            return instance._reRender();
+        },
+
+        _reRender: function() {
+            var instance = this;
+            return new Promise(function(resolve) {
+                instance._markHeadAttr();
+                instance._renderCss();
+                // ff has issues when rendering comes immediate after setting new css.
+                // therefore we go async:
+                async(function() {
+                    React.render(React.createElement(instance.BodyComponent, instance.props), DOCUMENT.body);
+                    resolve();
+                });
             });
-        });
-    }
-}
+        }
+    });
 
 if (!WINDOW.__ITSA_CLIENT_CONTROLLER) {
     WINDOW.__ITSA_CLIENT_CONTROLLER = isNode ? {} : new Controller();
