@@ -1,6 +1,6 @@
 {
   "name": "itsa-client-controller",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Controller for the clientside of itsa-react-server",
   "author": [
     {
@@ -29,7 +29,7 @@
     "node": "*"
   },
   "dependencies": {
-    "itsa-classes": "^1.0.0",
+    "itsa-classes": "^1.0.2",
     "react": "^0.13.3",
     "utils": "itsa/utils"
   },
