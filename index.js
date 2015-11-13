@@ -27,7 +27,7 @@ var Controller = Classes.createClass(function() {
             instance.lang = exports.props.__lang;
 
             // set moduleId of the chunk
-            exports.props.__routes.some(function(route) {
+            exports.props.__routes && exports.props.__routes.some(function(route) {
                 if (route.view===instance.view) {
                     instance.componentId = route.componentId;
                     instance.requireId = route.requireId;
@@ -49,12 +49,13 @@ var Controller = Classes.createClass(function() {
             // this way, we can manage its content
             var instance = this;
             instance.linkNode = DOCUMENT.querySelector('link[data-src="inline"]');
-            if (instance.linkNode) {
+            if (!instance.linkNode) {
                 stylenode = DOCUMENT.querySelector('style[data-src="inline"]');
             }
             if (instance.linkNode || !stylenode) {
                 stylenode = DOCUMENT.createElement('style');
                 stylenode.setAttribute('data-src', 'inline');
+                stylenode.setAttribute('type', 'text/css');
                 HEAD.appendChild(stylenode);
                 instance._CssNode = stylenode;
                 // cannot set instance.css --> will need to be loaded and set with next `setPage`
@@ -85,7 +86,7 @@ var Controller = Classes.createClass(function() {
         },
 
         _markHeadAttr: function() {
-            HEAD.setAttribute('data-page', this.getView());
+            DOCUMENT.documentElement.setAttribute('data-page', this.getView());
         },
 
         getProps: function() {
@@ -116,6 +117,10 @@ var Controller = Classes.createClass(function() {
             return this._CssNode.textContent;
         },
 
+        getBodyComponentInstance: function() {
+            return this._currentComponent;
+        },
+
         setPage: function(config/* view, BodyComponent, title, props, css, staticView, componentId, requireId */) {
             var instance = this;
             DOCUMENT.title = config.title || '';
@@ -139,7 +144,13 @@ var Controller = Classes.createClass(function() {
                 // ff has issues when rendering comes immediate after setting new css.
                 // therefore we go async:
                 async(function() {
-                    React.render(React.createElement(instance.BodyComponent, instance.props), DOCUMENT.body);
+                    var viewContainer = DOCUMENT.getElementById('view-container');
+                    if (viewContainer) {
+                        instance._currentComponent = React.render(React.createElement(instance.BodyComponent, instance.props), viewContainer);
+                    }
+                    else {
+                        console.error('The view-container seems to be removed from the DOM, cannot render the page');
+                    }
                     resolve();
                 });
             });
@@ -147,7 +158,11 @@ var Controller = Classes.createClass(function() {
     });
 
 if (!WINDOW.__ITSA_CLIENT_CONTROLLER) {
-    WINDOW.__ITSA_CLIENT_CONTROLLER = isNode ? {} : new Controller();
+    WINDOW.__ITSA_CLIENT_CONTROLLER = isNode ?
+        {
+            getProps: NOOP
+        } :
+        new Controller();
 }
 
 module.exports = WINDOW.__ITSA_CLIENT_CONTROLLER;
