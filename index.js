@@ -12,22 +12,42 @@ var isNode = (typeof global!=='undefined') && ({}.toString.call(global)==='[obje
       } : window;
 
 var React = require('react'),
-      DOCUMENT = WINDOW.document,
-      HEAD = DOCUMENT.head,
-      async = require('utils').async,
-      Classes = require('itsa-classes');
+    ReactDOM = require('react-dom'),
+    DOCUMENT = WINDOW.document,
+    HEAD = DOCUMENT.head,
+    async = require('utils').async,
+    Classes = require('itsa-classes');
 
-var Controller = Classes.createClass(function() {
-        var instance = this,
-              exports = WINDOW.__itsa_react_server;
-        if (exports) {
+var Controller = Classes.createClass({
+        init: function() {
+            var exports = WINDOW.__itsa_react_server;
+            if (exports && exports.BodyComponent) {
+                this._init();
+            }
+        },
+
+        _init: function() {
+            var instance = this,
+                exports = WINDOW.__itsa_react_server;
+            if (instance._isInitiated) {
+                return;
+            }
+            instance._isInitiated = true;
             instance.BodyComponent = exports.BodyComponent;
-            instance.props = exports.props;
-            instance.view = exports.props.__view;
-            instance.lang = exports.props.__lang;
+            instance._setProps(exports.props);
+            delete WINDOW.__itsa_react_server;
+            instance._initCss();
+            instance._reRender();
+        },
+
+        _setProps: function(props) {
+            var instance = this;
+            instance.props = props;
+            instance.view = props.__view;
+            instance.lang = props.__lang;
 
             // set moduleId of the chunk
-            exports.props.__routes && exports.props.__routes.some(function(route) {
+            props.__routes && props.__routes.some(function(route) {
                 if (route.view===instance.view) {
                     instance.componentId = route.componentId;
                     instance.requireId = route.requireId;
@@ -35,13 +55,8 @@ var Controller = Classes.createClass(function() {
                 return instance.componentId;
             });
 
-            instance.staticView = exports.props.__staticView;
-            delete WINDOW.__itsa_react_server;
-            instance._initCss();
-            instance._reRender();
-        }
-    },
-    {
+            instance.staticView = props.__staticView;
+        },
 
         _initCss: function() {
             var stylenode;
@@ -77,16 +92,41 @@ var Controller = Classes.createClass(function() {
             }
         },
 
+        _reRender: function() {
+            var instance = this;
+            return new Promise(function(resolve) {
+                instance._markHeadAttr();
+                instance._renderCss();
+                // ff has issues when rendering comes immediate after setting new css.
+                // therefore we go async:
+                async(function() {
+                    instance._createBodyElement(instance.props);
+                    resolve();
+                });
+            });
+        },
+
+        _createBodyElement: function(props) {
+            var instance = this,
+                viewContainer = DOCUMENT.getElementById('view-container');
+            if (viewContainer) {
+                instance._currentComponent = ReactDOM.render(React.createElement(instance.BodyComponent, props), viewContainer);
+            }
+            else {
+                console.error('The view-container seems to be removed from the DOM, cannot render the page');
+            }
+        },
+
+        _markHeadAttr: function() {
+            DOCUMENT.documentElement.setAttribute('data-page', this.getView());
+        },
+
         getComponentId: function() {
             return this.componentId;
         },
 
         getRequireId: function() {
             return this.requireId;
-        },
-
-        _markHeadAttr: function() {
-            DOCUMENT.documentElement.setAttribute('data-page', this.getView());
         },
 
         getProps: function() {
@@ -121,6 +161,19 @@ var Controller = Classes.createClass(function() {
             return this._currentComponent;
         },
 
+        forceUpdate: function(newProps) {
+            var instance = this;
+            newProps && instance._setProps(newProps);
+            if (instance._currentComponent) {
+                if (newProps) {
+                    instance._createBodyElement(newProps);
+                }
+                else {
+                    instance._currentComponent.forceUpdate();
+                }
+            }
+        },
+
         setPage: function(config/* view, BodyComponent, title, props, css, staticView, componentId, requireId */) {
             var instance = this;
             DOCUMENT.title = config.title || '';
@@ -134,27 +187,8 @@ var Controller = Classes.createClass(function() {
             instance.requireId = config.requireId;
             instance.staticView = (typeof config.staticView==='boolean') ? config.staticView : false;
             return instance._reRender();
-        },
-
-        _reRender: function() {
-            var instance = this;
-            return new Promise(function(resolve) {
-                instance._markHeadAttr();
-                instance._renderCss();
-                // ff has issues when rendering comes immediate after setting new css.
-                // therefore we go async:
-                async(function() {
-                    var viewContainer = DOCUMENT.getElementById('view-container');
-                    if (viewContainer) {
-                        instance._currentComponent = React.render(React.createElement(instance.BodyComponent, instance.props), viewContainer);
-                    }
-                    else {
-                        console.error('The view-container seems to be removed from the DOM, cannot render the page');
-                    }
-                    resolve();
-                });
-            });
         }
+
     });
 
 if (!WINDOW.__ITSA_CLIENT_CONTROLLER) {
