@@ -1,29 +1,49 @@
 'use strict';
 
-var isNode = (typeof global!=='undefined') && ({}.toString.call(global)==='[object global]') && (!global.document || ({}.toString.call(global.document)!=='[object HTMLDocument]')),
-      NOOP = function() {},
-      WINDOW = isNode ? {
-         document: {
-             head: {
-                 appendChild: NOOP
-             },
-             createElement: NOOP
-         }
-      } : window;
+require('itsa-dom/lib/polyfill');
+require('itsa-jsext/lib/object');
 
-var React = require('react'),
+var utils = require('itsa-utils'),
+    isNode = utils.isNode,
+    NOOP = function() {},
+    WINDOW = isNode ? {
+     document: {
+         head: {
+             appendChild: NOOP
+         },
+         createElement: NOOP
+     }
+    } : window,
+    React = require('react'), // DO NOT REMOVE! (even if unused)
     ReactDOM = require('react-dom'),
     DOCUMENT = WINDOW.document,
     HEAD = DOCUMENT.head,
-    async = require('utils').async,
-    Classes = require('itsa-classes');
+    async = utils.async,
+    io = require('itsa-fetch').io,
+    Classes = require('itsa-classes'),
+    GOOGLE_ANALYTICS_SRC = '//www.google-analytics.com/analytics.js';
+
 
 var Controller = Classes.createClass({
         init: function() {
             var exports = WINDOW.__itsa_react_server;
+            if (exports && exports.props) {
+                this._initProps();
+            }
             if (exports && exports.BodyComponent) {
                 this._init();
             }
+        },
+
+        _initProps: function() {
+            var instance = this,
+                exports = WINDOW.__itsa_react_server;
+            if (instance._propsInitiated) {
+                return;
+            }
+            instance._propsInitiated = true;
+            instance._setProps(exports.props);
+            instance.props.__ga && instance._setupGA(instance.props.__ga);
         },
 
         _init: function() {
@@ -34,10 +54,24 @@ var Controller = Classes.createClass({
             }
             instance._isInitiated = true;
             instance.BodyComponent = exports.BodyComponent;
-            instance._setProps(exports.props);
             delete WINDOW.__itsa_react_server;
             instance._initCss();
             instance._reRender();
+        },
+
+        _setupGA: function(googleAnaliticsKey) {
+            var ga;
+            WINDOW['GoogleAnalyticsObject'] = 'ga';
+            ga = WINDOW['ga'] = WINDOW['ga'] || function() {
+                (WINDOW['ga'].q = WINDOW['ga'].q || []).push(arguments);
+            },ga.l = 1 * new Date();
+            ga('create', googleAnaliticsKey, 'auto');
+            ga('send', 'pageview');
+            io.insertScript(GOOGLE_ANALYTICS_SRC).catch(function(err) {
+                delete WINDOW['GoogleAnalyticsObject'];
+                delete WINDOW['ga'];
+                console.warn('no google-analytics available: ', err);
+            });
         },
 
         _setProps: function(props) {
@@ -82,13 +116,22 @@ var Controller = Classes.createClass({
         },
 
         _renderCss: function() {
-            var instance = this;
-            if (instance.css) {
+            var instance = this,
+                css = instance.css,
+                stylenode;
+            if (css) {
                 if (instance.linkNode) {
                     HEAD.removeChild(instance.linkNode);
                     delete instance.linkNode;
                 }
-                instance._CssNode.textContent = instance.css;
+                // add the css as an extra css
+                stylenode = DOCUMENT.createElement('style');
+                stylenode.setAttribute('data-src', 'inline');
+                stylenode.setAttribute('type', 'text/css');
+                stylenode.textContent = css;
+                HEAD.appendChild(stylenode);
+                instance._CssNodeOld = instance._CssNode; // will be removed after rendering the new view
+                instance._CssNode = stylenode;
             }
         },
 
@@ -101,16 +144,24 @@ var Controller = Classes.createClass({
                 // therefore we go async:
                 async(function() {
                     instance._createBodyElement(instance.props);
-                    resolve();
+                    // now remove the old css of the previous view
+                    async(function() {
+                        resolve();
+                        if (instance._CssNodeOld) {
+                            HEAD.removeChild(instance._CssNodeOld);
+                            delete instance._CssNodeOld;
+                        }
+                    });
                 });
             });
         },
 
         _createBodyElement: function(props) {
             var instance = this,
+                BaseComponent = instance.getBodyComponent(),
                 viewContainer = DOCUMENT.getElementById('view-container');
             if (viewContainer) {
-                instance._currentComponent = ReactDOM.render(React.createElement(instance.BodyComponent, props), viewContainer);
+                instance._currentComponent = ReactDOM.render(<BaseComponent {...props} />, viewContainer);
             }
             else {
                 console.error('The view-container seems to be removed from the DOM, cannot render the page');
@@ -127,6 +178,10 @@ var Controller = Classes.createClass({
 
         getRequireId: function() {
             return this.requireId;
+        },
+
+        getClonedProps: function() {
+            return this.props.itsa_deepClone();
         },
 
         getProps: function() {
